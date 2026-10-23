@@ -1,6 +1,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 from genlayer import *
 import json
+import time
 from dataclasses import dataclass
 
 
@@ -79,7 +80,7 @@ class BountyTriage(gl.Contract):
             reward_medium=reward_medium,
             reward_low=reward_low,
             status="open",
-            created_at=gl.block.timestamp,
+            created_at=u256(int(time.time())),
         )
         self.bounty_counter = bounty_id + u256(1)
         return bounty_id
@@ -137,7 +138,7 @@ class BountyTriage(gl.Contract):
             ruled_severity="",
             triage_summary="",
             decided_reward=u256(0),
-            submitted_at=gl.block.timestamp,
+            submitted_at=u256(int(time.time())),
         )
         self.report_counter = report_id + u256(1)
         return report_id
@@ -193,7 +194,9 @@ class BountyTriage(gl.Contract):
             )
 
             raw = gl.nondet.exec_prompt(task).strip()
-            data = json.loads(raw)
+            # strip markdown fences in case the model wraps the JSON
+            clean = raw.replace("```json", "").replace("```", "").strip()
+            data = json.loads(clean)
             valid = bool(data.get("valid", False))
             severity = str(data.get("severity", "none")).strip().lower()
             if severity not in SEVERITIES:
@@ -288,3 +291,15 @@ class BountyTriage(gl.Contract):
     @gl.public.view
     def get_report_count(self) -> int:
         return int(self.report_counter)
+
+    @gl.public.view
+    def get_report_status(self, report_id: u256) -> str:
+        return self.reports[report_id].status
+
+    @gl.public.view
+    def get_report_severity(self, report_id: u256) -> str:
+        return self.reports[report_id].ruled_severity
+
+    @gl.public.view
+    def get_report_reward(self, report_id: u256) -> int:
+        return int(self.reports[report_id].decided_reward)
