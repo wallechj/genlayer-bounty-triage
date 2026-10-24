@@ -1,0 +1,1 @@
+{"bounty_id":0,"claimed_severity":"medium","description":"Calling deposit() repeatedly with tiny amounts inflates pendingFees bookkeeping and bloats state. Each dust deposit adds an entry the pool must track.","poc_url":"","title":"Gas griefing via deposit() inflates bookkeeping"}

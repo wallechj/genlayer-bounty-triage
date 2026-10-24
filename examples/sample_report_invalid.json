@@ -1,1 +1,1 @@
-{"bounty_id":0,"claimed_severity":"low","description":"The word \"recieve\" is misspelled in README.md line 42. Should be \"receive\".","poc_url":"","title":"Typo in README"}
+{"bounty_id":0,"claimed_severity":"high","description":"FlashLender.sol allows flash loans with no fee check, letting an attacker borrow the whole pool balance, manipulate the price, and repay in the same transaction for a risk-free profit.","poc_url":"","title":"Flash loan manipulation in FlashLender.sol drains the pool"}
