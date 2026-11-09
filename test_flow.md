@@ -87,6 +87,11 @@ material. A claim about a component the contract never saw must not survive tria
 and evidence noting the deposit gas-griefing entry in the fetched known-issues list
 (or the prior on-chain record). Known issues are not new findings.
 
+Severity invariant check (new in v4): `get_report_severity(0)` is one of
+critical/high/medium/low (valid), `get_report_severity(1)` and
+`get_report_severity(2)` are `"none"` (invalid). A valid report never carries
+`"none"`; an invalid report never carries a bucket.
+
 Re-running `triage_report(0)` → `UserError: report has already been triaged`.
 
 ## 4. Ungroundable bounty: no fetch, no valid verdict (account A)
@@ -102,7 +107,28 @@ evidence noting the target material could not be retrieved. This is the groundin
 rule enforced: without fetched evidence, a report cannot be valid, even if the
 claim itself sounds plausible.
 
-## 5. Lifecycle + payment trail (account A)
+## 5. Duplicate authority (new in v4)
+
+Two repeats, one of each kind. Both are submitted by B against bounty 0, and both
+must come back `"invalid"` — but for different reasons, and the evidence note is
+what tells them apart.
+
+Repeat of a REJECTED report — `submit_report` with
+`examples/sample_report_repeat_rejected.json` (the FlashLender claim, identical to
+report 1). Expect: returns `4`. Then `triage_report(4)` — expect `"invalid"`,
+`ruled_severity: "none"`, `decided_reward: 0`, and evidence noting that
+`FlashLender.sol` does not appear in the fetched target material. It must NOT be
+ruled a duplicate of report 1: report 1 was rejected, so it is not duplicate
+authority. The claim fails on its own grounding.
+
+Repeat of an ACCEPTED finding — `submit_report` with
+`examples/sample_report_repeat_accepted.json` (the settle() claim, identical to
+report 0). Expect: returns `5`. Then `triage_report(5)` — expect `"invalid"`,
+`ruled_severity: "none"`, `decided_reward: 0`, and evidence noting the prior
+accepted finding (report 0, the settle() access-control issue). This one IS a
+duplicate — accepted findings still count.
+
+## 6. Lifecycle + payment trail (account A)
 
 - `pause_bounty(0)`, then submit as B → `UserError: bounty is not open for submissions`.
 - `reopen_bounty(0)`.
@@ -111,8 +137,11 @@ claim itself sounds plausible.
 - `mark_paid` as account B → `UserError: only the bounty owner can mark a report paid`.
 - `close_bounty(0)` ends the program.
 
-## 6. Views
+## 7. Views
 
 `get_bounty(0)` returns the full bounty incl. target_url, known_issues_url, and
-reward table; `get_bounty_count()` → `2`; `get_report_count()` → `4`.
+reward table; `get_bounty_count()` → `2`; `get_report_count()` → `6`.
 `get_report_evidence(n)` returns each verdict's one-sentence evidence note.
+Severity invariant across all six reports: `get_report_severity(0)` is a real
+bucket (valid); `get_report_severity(1)` through `get_report_severity(5)` are all
+`"none"` (invalid).

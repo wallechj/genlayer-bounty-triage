@@ -15,13 +15,13 @@ A normal smart contract can't do this job. Triage is a judgment call over natura
 `triage_report` is the heart of the contract. Each validator:
 
 1. **Fetches the program's evidence itself** (`gl.nondet.web.render`): the owner-declared target material (the code under test) and the published known-issues list. These URLs are set by the bounty owner at creation — never by the reporter — so triage never has to take the reporter's word for what the target contains.
-2. Pulls the on-chain record of prior decided reports on the same program, for duplicate detection.
+2. Pulls the on-chain record of prior accepted findings on the same program, for duplicate detection. Only accepted findings count — a rejected report is not duplicate authority.
 3. Optionally fetches the researcher's proof-of-concept URL as secondary corroboration only.
 4. Runs a structured audit prompt with three grounding rules:
    - **No grounding, no valid verdict.** The claimed vulnerable component must be corroborated by the fetched target material. If the target can't be retrieved, or it doesn't mention the claimed component, the verdict is invalid — a report is never valid on the researcher's word alone.
-   - **Duplicates are rejected.** A claim matching the fetched known-issues list or a prior on-chain verdict is invalid, and the verdict says so.
+   - **Duplicates are rejected.** A claim matching the fetched known-issues list or a prior accepted finding is invalid, and the verdict says so. A match against a rejected report does not count as a duplicate.
    - **Scope and severity as before**, against the program's scope and rules.
-5. Returns a normalized JSON verdict `{valid, severity, summary, evidence}` — severity forced into a fixed bucket set, summary and evidence note truncated — so equal judgments serialize identically.
+5. Returns a normalized JSON verdict `{valid, severity, summary, evidence}` — validated deterministically before it is stored: `valid` must be an actual JSON boolean (the string "true" does not count), and the severity invariant is enforced — a valid report always carries a real bucket (critical/high/medium/low), an invalid report always carries "none"; a valid verdict with no usable severity is rejected, not rewarded. Summary and evidence note are truncated so equal judgments serialize identically.
 
 Consensus uses `gl.eq_principle.prompt_comparative` with this equivalence rule:
 
@@ -39,6 +39,15 @@ The first submitted version (v2) triaged reports against the scope/rules text pl
 - `triage_report` fetches both on every run, grounds the verdict in the fetched material, and stores an evidence note on-chain.
 - Duplicate detection now uses two authoritative sources: the fetched known-issues list and prior on-chain verdicts.
 - The demo fixtures in `examples/` (`target_contract.sol`, `known_issues.md`) are real, public, fetchable files, so the evidence path is exercised for real in Studio — not just claimed.
+
+## What changed in v4
+
+A second Steward review (2026-11-09) asked for two corrections in the triage path:
+
+- **Strict verdict validation.** `valid` is now checked with `type(...) is bool` — the old `bool(...)` coercion would have accepted the string `"true"` or a `1` as valid. The severity invariant is enforced in the same normalization step: a valid report always carries a real severity bucket, an invalid report always carries `"none"`. A valid verdict with no usable severity is rejected, not rewarded.
+- **Rejected reports are no longer duplicate authority.** Duplicate detection now looks only at prior *accepted* findings (ruled `valid`, or `paid` after being ruled valid). A new report matching a rejected report is judged on its own merits — usually invalid for the same underlying reason, but never "duplicate of a rejected finding". The published known-issues list remains the other trustworthy record for duplication.
+
+The demo flow now covers both: a repeat of the rejected FlashLender claim is ruled invalid on its own grounding (not as a duplicate), while a repeat of the accepted settle() finding is ruled invalid as a duplicate of an accepted finding.
 
 ## Contract API
 
@@ -60,7 +69,7 @@ Report lifecycle: `submitted` → `valid` / `invalid` → (`paid`, owner-confirm
 1. Make sure `examples/target_contract.sol` and `examples/known_issues.md` are pushed (the raw URLs in `examples/sample_bounty.json` must open in a browser).
 2. Open [studio.genlayer.com](https://studio.genlayer.com), paste `contracts/bounty_triage.py`, deploy.
 3. `create_bounty` — use the example in `examples/sample_bounty.json`.
-4. Switch accounts, `submit_report` — use `examples/sample_report_valid.json`, `examples/sample_report_invalid.json`, then `examples/sample_report_duplicate.json`.
+4. Switch accounts, `submit_report` — use `examples/sample_report_valid.json`, `examples/sample_report_invalid.json`, then `examples/sample_report_duplicate.json`. The two repeat samples (`sample_report_repeat_rejected.json`, `sample_report_repeat_accepted.json`) are for test_flow step 5.
 5. `triage_report` on each. Watch the validator logs: every validator fetches the target file and the known-issues page before assessing.
 6. `get_report` to see the stored verdict and its evidence note, then `mark_paid` as the bounty owner.
 
